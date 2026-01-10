@@ -43,7 +43,7 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
         const cmd = `"${ffmpegPath}" -y -ss ${timestamp} -i "${videoPath}" -vframes 1 -q:v 2 "${outputPath}"`;
 
         framePromises.push(
-            execAsync(cmd)
+            execAsync(cmd, { maxBuffer: 1024 * 1024 * 10 })
                 .then(() => outputPath)
                 .catch(err => {
                     return null;

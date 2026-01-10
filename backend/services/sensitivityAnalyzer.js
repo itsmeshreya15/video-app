@@ -6,6 +6,9 @@ const { promisify } = require('util');
 const { RekognitionClient, DetectModerationLabelsCommand } = require('@aws-sdk/client-rekognition');
 const storageService = require('./storage');
 
+const ffmpegPath = require('ffmpeg-static');
+const ffprobePath = require('ffprobe-static').path;
+
 const execAsync = promisify(exec);
 
 const rekognition = new RekognitionClient({
@@ -21,7 +24,7 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
         fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    const durationCmd = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
+    const durationCmd = `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
 
     let duration = 10;
     try {
@@ -37,7 +40,7 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
     for (let i = 1; i <= numFrames; i++) {
         const timestamp = interval * i;
         const outputPath = path.join(outputDir, `frame_${i}.jpg`);
-        const cmd = `ffmpeg -y -ss ${timestamp} -i "${videoPath}" -vframes 1 -q:v 2 "${outputPath}"`;
+        const cmd = `"${ffmpegPath}" -y -ss ${timestamp} -i "${videoPath}" -vframes 1 -q:v 2 "${outputPath}"`;
 
         framePromises.push(
             execAsync(cmd)

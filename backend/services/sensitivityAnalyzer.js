@@ -49,7 +49,7 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
     // But for time based, using FPS filter with start time is easier
     // Command: ffmpeg -i video.mp4 -vf fps=1/interval -vframes numFrames out%d.jpg
 
-    const cmd = `ffmpeg -y -i "${videoPath}" -vf "fps=${fps}" -vframes ${numFrames} -q:v 2 "${framePattern}"`;
+    const cmd = `ffmpeg -y -i "${videoPath}" -vf "fps=${fps},scale=320:-1" -vframes ${numFrames} -q:v 5 "${framePattern}"`;
 
     try {
         await execAsync(cmd);
@@ -196,6 +196,11 @@ const analyzeVideo = async (videoId, io) => {
                 message: `Analyzing frame ${i + 1}/${frames.length}...`
             });
             await Video.findByIdAndUpdate(videoId, { processingProgress: progress });
+
+            // Explicitly force garbage collection if exposed (node --expose-gc)
+            if (global.gc) {
+                global.gc();
+            }
         }
 
         io.emit(`video:${videoId}:progress`, {

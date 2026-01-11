@@ -20,8 +20,6 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
     if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
     }
-
-    // Get duration using ffprobe
     const durationCmd = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
     let duration = 10;
     try {
@@ -30,25 +28,10 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
     } catch (e) {
         console.error('Error getting duration:', e);
     }
-
-    // Calculate interval to capture frames evenly distributed
-    // Ensure we don't divide by zero or get negative numbers
     const safeDuration = Math.max(duration, 1);
     const interval = safeDuration / (numFrames + 1);
-
-    // Construct a single ffmpeg command to extract all frames
-    // We use the 'select' filter to pick frames at specific timestamps
-    // This runs ONE ffmpeg process instead of N processes
     const framePattern = path.join(outputDir, 'frame_%d.jpg');
-
-    // fps=1/interval means take 1 frame every 'interval' seconds
-    // We limit to numFrames to avoid over-generation
     const fps = 1 / interval;
-
-    // Using select filter is precise: "select='not(mod(n,X))'" is frame based
-    // But for time based, using FPS filter with start time is easier
-    // Command: ffmpeg -i video.mp4 -vf fps=1/interval -vframes numFrames out%d.jpg
-
     const cmd = `ffmpeg -y -i "${videoPath}" -vf "fps=${fps},scale=320:-1" -vframes ${numFrames} -q:v 5 "${framePattern}"`;
 
     try {
@@ -56,10 +39,7 @@ const extractFrames = async (videoPath, outputDir, numFrames = 5) => {
     } catch (err) {
         console.error('Error extracting frames:', err);
     }
-
-    // Verify which frames were actually created
     const expectedFrames = [];
-    // ffmpeg output pattern %d starts at 1 usually
     const files = fs.readdirSync(outputDir).filter(f => f.startsWith('frame_') && f.endsWith('.jpg'));
 
     return files.map(f => path.join(outputDir, f));
@@ -196,8 +176,6 @@ const analyzeVideo = async (videoId, io) => {
                 message: `Analyzing frame ${i + 1}/${frames.length}...`
             });
             await Video.findByIdAndUpdate(videoId, { processingProgress: progress });
-
-            // Explicitly force garbage collection if exposed (node --expose-gc)
             if (global.gc) {
                 global.gc();
             }

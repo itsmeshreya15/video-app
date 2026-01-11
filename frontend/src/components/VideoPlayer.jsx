@@ -26,7 +26,8 @@ const VideoPlayer = ({ video, onClose }) => {
     const { token } = useAuth();
 
     // Stream URL with auth token as query parameter (browsers don't send auth headers for video src)
-    const streamUrl = `http://localhost:5000/api/videos/${video._id}/stream?token=${token}`;
+    const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const streamUrl = `${BASE_URL}/api/videos/${video._id}/stream?token=${token}`;
 
     useEffect(() => {
         let timeout;

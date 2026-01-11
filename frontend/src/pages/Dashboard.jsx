@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -57,55 +57,70 @@ const Dashboard = () => {
         fetchVideos();
     }, []);
 
-    // Socket.io for real-time updates
+    const socketRef = useRef(null);
+
+    // Initialize socket connection ONCE on mount
     useEffect(() => {
         const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const socket = io(BASE_URL);
+        socketRef.current = io(BASE_URL);
 
-        socket.on('connect', () => {
+        socketRef.current.on('connect', () => {
             console.log('Socket connected for dashboard');
         });
 
-        // Subscribe to all processing videos
+        // Cleanup on unmount
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+        };
+    }, []);
+
+    // Manage subscriptions when video list size changes (new uploads)
+    useEffect(() => {
+        const socket = socketRef.current;
+        if (!socket) return;
+
         videos.forEach(video => {
+            // Only setup listeners for processing videos
             if (video.status === 'processing' || video.status === 'pending') {
+                // Subscribe
                 socket.emit('subscribe:video', video._id);
+
+                // Remove existing listeners first to avoid duplicates
+                socket.off(`video:${video._id}:progress`);
+                socket.off(`video:${video._id}:complete`);
+
+                // Add listeners
+                socket.on(`video:${video._id}:progress`, (data) => {
+                    setProcessingVideos(prev => ({
+                        ...prev,
+                        [video._id]: data
+                    }));
+
+                    setVideos(prev => prev.map(v =>
+                        v._id === video._id
+                            ? { ...v, status: data.status, processingProgress: data.progress }
+                            : v
+                    ));
+                });
+
+                socket.on(`video:${video._id}:complete`, (data) => {
+                    setVideos(prev => prev.map(v =>
+                        v._id === video._id
+                            ? { ...v, status: data.status, processingProgress: 100, sensitivityScore: data.sensitivityScore }
+                            : v
+                    ));
+
+                    toast.success(`Video "${videos.find(v => v._id === video._id)?.title || 'Video'}" processing complete!`);
+
+                    // Refresh stats
+                    setTimeout(fetchVideos, 500);
+                });
             }
         });
 
-        // Listen for progress updates
-        videos.forEach(video => {
-            socket.on(`video:${video._id}:progress`, (data) => {
-                setProcessingVideos(prev => ({
-                    ...prev,
-                    [video._id]: data
-                }));
-
-                // Update video in list
-                setVideos(prev => prev.map(v =>
-                    v._id === video._id
-                        ? { ...v, status: data.status, processingProgress: data.progress }
-                        : v
-                ));
-            });
-
-            socket.on(`video:${video._id}:complete`, (data) => {
-                setVideos(prev => prev.map(v =>
-                    v._id === video._id
-                        ? { ...v, status: data.status, processingProgress: 100, sensitivityScore: data.sensitivityScore }
-                        : v
-                ));
-
-                toast.success(`Video "${videos.find(v => v._id === video._id)?.title}" processing complete!`);
-
-                // Refresh to get updated stats
-                setTimeout(fetchVideos, 500);
-            });
-        });
-
-        return () => {
-            socket.disconnect();
-        };
+        // No cleanup here! keeps manual subscriptions alive.
     }, [videos.length]);
 
     const handleUploadComplete = (newVideo) => {
@@ -115,6 +130,12 @@ const Dashboard = () => {
             total: prev.total + 1,
             processing: prev.processing + 1
         }));
+
+        // Immediately subscribe using the ref
+        if (socketRef.current) {
+            socketRef.current.emit('subscribe:video', newVideo._id);
+            console.log('Manually subscribed to:', newVideo._id);
+        }
     };
 
     const handleDeleteVideo = async (video) => {

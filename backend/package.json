@@ -10,25 +10,20 @@
     "test": "jest"
   },
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.966.0",
-    "@aws-sdk/client-s3": "^3.966.0",
-    "@aws-sdk/lib-storage": "^3.966.0",
-    "@aws-sdk/s3-request-presigner": "^3.966.0",
-    "@tensorflow/tfjs": "^4.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "ffmpeg-static": "^5.2.0",
-    "ffprobe-static": "^3.1.0",
     "fluent-ffmpeg": "^2.1.2",
-    "jimp": "^1.6.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "multer": "^1.4.5-lts.1",
-    "nsfwjs": "^4.2.1",
     "socket.io": "^4.6.1",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@aws-sdk/client-rekognition": "^3.966.0",
+    "@aws-sdk/client-s3": "^3.966.0",
+    "@aws-sdk/lib-storage": "^3.966.0",
+    "@aws-sdk/s3-request-presigner": "^3.966.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

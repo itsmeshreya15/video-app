@@ -36,8 +36,6 @@ const Dashboard = () => {
             const response = await videoAPI.getVideos({ sort: '-createdAt' });
             const fetchedVideos = response.data.data;
             setVideos(fetchedVideos);
-
-            // Calculate stats
             const newStats = {
                 total: fetchedVideos.length,
                 safe: fetchedVideos.filter(v => v.status === 'safe').length,
@@ -58,8 +56,6 @@ const Dashboard = () => {
     }, []);
 
     const socketRef = useRef(null);
-
-    // Initialize socket connection ONCE on mount
     useEffect(() => {
         const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         socketRef.current = io(BASE_URL);
@@ -67,31 +63,21 @@ const Dashboard = () => {
         socketRef.current.on('connect', () => {
             console.log('Socket connected for dashboard');
         });
-
-        // Cleanup on unmount
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
             }
         };
     }, []);
-
-    // Manage subscriptions when video list size changes (new uploads)
     useEffect(() => {
         const socket = socketRef.current;
         if (!socket) return;
 
         videos.forEach(video => {
-            // Only setup listeners for processing videos
             if (video.status === 'processing' || video.status === 'pending') {
-                // Subscribe
                 socket.emit('subscribe:video', video._id);
-
-                // Remove existing listeners first to avoid duplicates
                 socket.off(`video:${video._id}:progress`);
                 socket.off(`video:${video._id}:complete`);
-
-                // Add listeners
                 socket.on(`video:${video._id}:progress`, (data) => {
                     setProcessingVideos(prev => ({
                         ...prev,
@@ -113,14 +99,10 @@ const Dashboard = () => {
                     ));
 
                     toast.success(`Video "${videos.find(v => v._id === video._id)?.title || 'Video'}" processing complete!`);
-
-                    // Refresh stats
                     setTimeout(fetchVideos, 500);
                 });
             }
         });
-
-        // No cleanup here! keeps manual subscriptions alive.
     }, [videos.length]);
 
     const handleUploadComplete = (newVideo) => {
@@ -130,11 +112,31 @@ const Dashboard = () => {
             total: prev.total + 1,
             processing: prev.processing + 1
         }));
-
-        // Immediately subscribe using the ref
         if (socketRef.current) {
-            socketRef.current.emit('subscribe:video', newVideo._id);
-            console.log('Manually subscribed to:', newVideo._id);
+            const socket = socketRef.current;
+            socket.emit('subscribe:video', newVideo._id);
+            socket.on(`video:${newVideo._id}:progress`, (data) => {
+                setProcessingVideos(prev => ({
+                    ...prev,
+                    [newVideo._id]: data
+                }));
+
+                setVideos(prev => prev.map(v =>
+                    v._id === newVideo._id
+                        ? { ...v, status: data.status, processingProgress: data.progress }
+                        : v
+                ));
+            });
+
+            socket.on(`video:${newVideo._id}:complete`, (data) => {
+                setVideos(prev => prev.map(v =>
+                    v._id === newVideo._id
+                        ? { ...v, status: data.status, processingProgress: 100, sensitivityScore: data.sensitivityScore }
+                        : v
+                ));
+                toast.success(`Video "${newVideo.title}" processing complete!`);
+                setTimeout(fetchVideos, 500);
+            });
         }
     };
 
@@ -145,7 +147,7 @@ const Dashboard = () => {
             await videoAPI.deleteVideo(video._id);
             setVideos(prev => prev.filter(v => v._id !== video._id));
             toast.success('Video deleted successfully');
-            fetchVideos(); // Refresh stats
+            fetchVideos();
         } catch (error) {
             toast.error('Failed to delete video');
         }
@@ -156,7 +158,6 @@ const Dashboard = () => {
 
     return (
         <div className="space-y-8">
-            {/* Welcome Section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-800">
@@ -206,15 +207,10 @@ const Dashboard = () => {
                     <p className="text-slate-500 text-sm">Processing</p>
                 </div>
             </div>
-
-            {/* Main Content Grid */}
             <div className="grid lg:grid-cols-2 gap-8">
-                {/* Upload Section (Editor/Admin only) */}
                 {isEditor() && (
                     <VideoUpload onUploadComplete={handleUploadComplete} />
                 )}
-
-                {/* Processing Queue */}
                 <div className="card bg-white border-slate-200 shadow-sm">
                     <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-800">
                         <FiActivity className="text-amber-500" />
@@ -230,7 +226,7 @@ const Dashboard = () => {
                         <div className="space-y-4">
                             {processingList.map(video => {
                                 const progress = processingVideos[video._id]?.progress || video.processingProgress || 0;
-                                const message = processingVideos[video._id]?.message || 'Waiting to process...';
+                                const message = processingVideos[video._id]?.message || (progress > 0 ? 'Processing...' : 'Waiting to process...');
 
                                 return (
                                     <div key={video._id} className="p-4 rounded-xl bg-slate-50 border border-slate-100">
@@ -252,8 +248,6 @@ const Dashboard = () => {
                     )}
                 </div>
             </div>
-
-            {/* Recent Videos */}
             <div>
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
@@ -291,8 +285,6 @@ const Dashboard = () => {
                     </div>
                 )}
             </div>
-
-            {/* Video Player Modal */}
             {selectedVideo && (
                 <VideoPlayer
                     video={selectedVideo}
